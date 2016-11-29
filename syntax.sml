@@ -16,7 +16,6 @@ struct
   type const = Const.const
   type binding = string
 
-
   datatype head = HVar of var
                 | HConst of const
 

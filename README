@@ -1,0 +1,33 @@
+This is a fairly simple standalone implementation of the Edinburgh
+Logical Framework, adapted from my Typecoin work (but with the few
+Typecoin extensions to LF stripped out). It could be useful
+educationally (or maybe even practically if you need to embed LF in
+your stuff for some reason but don't need to parse it >_>).
+
+It is all pretty atrociously documented, though, and not that great of
+code to begin with.
+
+Some notes on the implementation:
+ * We use the Canonical LF methodology in which all expressions must
+   be in "Canonical Form": beta-short and eta-long.
+   That is, there are no beta redexes (no lambdas applied to
+   arguments) and everything is maximally eta-extended (every variable
+   and constant of function type is applied to all of its arguments).
+ * The type-checking rules for LF involve substitution and
+   substitution does not preserve canonical forms in general. To
+   handle this we use "hereditary substitution" which automatically
+   reduces any new beta-redexes that would be introduced by a
+   substitution.
+ * The lack of beta redexes is enforced by representing applications in
+   spine form: all applications are syntactically a head (a variable
+   or constant) applied to a spine (list) of expressions.
+ * One of the big advantages of Canonical LF is that term/type
+   equality is just structural equality!
+ * To make this extra true, we represent variables using de Bruijn
+   indexes.
+ * I don't include code to produce Canonical LF from Vanilla LF, but
+   maybe should. You can't *just* go in and blithely reduce
+   beta-redexes away by hereditary substitution, since that could
+   infinite loop for type-incorrect programs. But I'm pretty sure you
+   can rule that out with basic Simply-Typed Lambda Calculus
+   typechecking and leave full LF typechecking to Canonical LF.
