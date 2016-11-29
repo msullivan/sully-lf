@@ -8,6 +8,8 @@ Group is
     check.sml
     from-named.sml
 
+    tests.sml
+
     (* tom7/mlton layout stuff *)
     layout.sig
     layout.sml
