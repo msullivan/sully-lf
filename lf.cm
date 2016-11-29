@@ -1,11 +1,19 @@
 Group is
-        $CMLIB/cmlib.cm
-        syntax.sml
-        util.sml
-        signature.sml
-        pretty.sml
-        check.sml
-		from-named.sml
+    $/basis.cm
 
-		layout.sig
-		layout.sml
+    syntax.sml
+    util.sml
+    signature.sml
+    pretty.sml
+    check.sml
+    from-named.sml
+
+    (* tom7/mlton layout stuff *)
+    layout.sig
+    layout.sml
+
+    (* The original version used SplayDict from cmlib.
+     * To avoid more deps, I just replaced it with a garbage
+     * map *)
+    (*$CMLIB/cmlib.cm*)
+    dict.sml
