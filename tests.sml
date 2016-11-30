@@ -17,6 +17,7 @@ struct
 
 
   fun c_app c ls = EApp (HConst c, listToSpine ls)
+  fun c_0 c = c_app c []
 
   end
 
@@ -67,9 +68,9 @@ struct
   val nat_test = FromNamed.convertSignature
       [(T, "nat", EType),
        (O, "z", nat),
-       (O, "s", arrow nat nat),
+       (O, "s", nat --> nat),
 
-       (T, "plus", arrow nat (arrow nat (arrow nat EType))),
+       (T, "plus", nat --> nat --> nat --> EType),
        (O, "plus/0",
         EPi ("n", nat, plus zero n n)),
        (O, "plus/s",
@@ -166,6 +167,15 @@ struct
       ]
 
   (*******************************************************************************************)
+  val eta_screwup_test = FromNamed.convertSignature
+       [(T, "nat", EType),
+        (O, "s", nat --> nat),
+        (O, "fix", (nat --> nat) --> nat),
+        (T, "bs", nat --> EType),
+        (O, "right",
+         c_app "bs" [c_app "fix" [ELam ("n", succ n)]]),
+        (O, "wrong", c_app "bs" [c_app "fix" [c_0 "s"]])]
+
 
 
   (*****************************************************************)
