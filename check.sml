@@ -105,11 +105,11 @@ in
 
   fun checkExp' sg ctx exp typ =
       ((checkExp sg ctx exp typ)
-       handle TypeError s => (print ("Type error: " ^ s ^ "\n"); raise TypeError s))
+       handle TypeError s => (print ("\nType error: " ^ s ^ "\n"); raise TypeError s))
   val checkExp = checkExp'
   fun expEquality'' e e' =
       ((expEquality e e')
-       handle TypeError s => (print ("Type error: " ^ s ^ "\n"); raise TypeError s))
+       handle TypeError s => (print ("\nType error: " ^ s ^ "\n"); raise TypeError s))
   val expEquality = expEquality''
 
 
