@@ -14,12 +14,15 @@ struct
       val fmt = L.tostringex WIDTH
   in
 
-  val look_good_but_be_wrong = true
+  (* Config options *)
+  val look_good_but_be_wrong = ref true
+  val twelf_style_pi = ref true
+
 
   fun prettyConst s = s
 
   fun toLayoutHead (HVar (i, s)) =
-      if look_good_but_be_wrong then $s
+      if !look_good_but_be_wrong then $s
       else $(s ^ "/" ^ Int.toString i)
     | toLayoutHead (HConst s) = $(prettyConst s)
   fun toLayoutExp e =
@@ -53,7 +56,11 @@ struct
     | toLayoutTyParen (e as EPi _) = L.paren (toLayoutExp e)
     | toLayoutTyParen e = toLayoutExp e
 
-  and piPartLayout b e1 = &[$"pi ", $b, $" : ", toLayoutExp e1, $"."]
+  and piPartLayout b e1 =
+      if !twelf_style_pi then
+          &[$"{", $b, $":", toLayoutExp e1, $"}"]
+      else
+          &[$"pi ", $b, $" : ", toLayoutExp e1, $"."]
 
   (* A nicer layout for "toplevel" pis *)
   (* Another try that doesn't screw over ->s ?? *)
@@ -62,11 +69,12 @@ struct
             | loop l (EPi (b, e1, e2)) = loop (piPartLayout b e1 :: l) e2
             | loop l e = %[%% (rev l), toLayoutExp e]
       in loop [] e end
+
   (* Actually, let's combine them. *)
   fun toLayoutTop1 e =
-      let fun loop l (e as EPi ("_", _, _)) = %[% (rev l), toLayoutTop2 e]
+      let fun loop l (e as EPi ("_", _, _)) = %[%% (rev l), toLayoutTop2 e]
             | loop l (EPi (b, e1, e2)) = loop (piPartLayout b e1 :: l) e2
-            | loop l e = %[% (rev l), toLayoutTop2 e]
+            | loop l e = %[%% (rev l), toLayoutTop2 e]
       in loop [] e end
 
   val toLayoutTop = toLayoutTop1
