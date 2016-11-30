@@ -15,8 +15,12 @@ struct
   infix <--
   fun t1 <-- t2 = t2 --> t1
 
+  fun v s = HVar (~1, s)
+  fun var s = EApp (v s, SNil)
 
-  fun c_app c ls = EApp (HConst c, listToSpine ls)
+  fun h_app h ls = EApp (h, listToSpine ls)
+  fun c_app c ls = h_app (HConst c) ls
+  fun v_app x ls = h_app (v x) ls
   fun c_0 c = c_app c []
 
   end
@@ -34,11 +38,8 @@ struct
   fun succ n = c_app "s" [n]
   fun plus n1 n2 n3 = c_app "plus" [n1, n2, n3]
 
-  fun v s = HVar (~1, s)
-  fun var s = EApp (v s, SNil)
-
-  val [n, m, p, A, B, e, e', D, D', D'', k, r] =
-      map var ["n", "m", "p", "A", "B", "e", "e'", "D", "D'", "D''", "k", "r"]
+  val [x, n, m, p, A, B, e, e', e1, e1', e2, e2', D, D', D'', k, r] =
+      map var ["x", "n", "m", "p", "A", "B", "e", "e'", "e1", "e1'", "e2", "e2'", "D", "D'", "D''", "k", "r"]
 
   (* An encoding of natural numbers and a Twelf-style proof that
    * plus commutes. Of course, we aren't checking that proof here,
@@ -113,7 +114,8 @@ struct
         EPi ("D'", plus m (succ n) (succ p),
         c_app "plus-comm-s"
               [succ m, n, succ p,
-               c_app "plus/s" [m, n, p, D], c_app "plus/s" [m, (succ n), (succ p), D']]
+               c_app "plus/s" [m, n, p, D],
+               c_app "plus/s" [m, (succ n), (succ p), D']]
         <--
         c_app "plus-comm-s" [m, n, p, D, D']
        )))))),
@@ -137,18 +139,21 @@ struct
         c_app "plus-comm" [m, n, p, D, D']
         <--
         c_app "plus-comm-s" [n, m, p, D', D'']
-       ))))))),
-
-       (T, "-", EType)
+       )))))))
       ]
 
-  (* An encoding of typing for the Simply-Typed Lambda Calculus *)
+  fun eta1 e = ELam ("x", h_app (v e) [x])
+
+  (* An encoding of typing and stepping for
+   * the Simply-Typed Lambda Calculus *)
   val tp = c_app "tp" []
   val term = c_app "term" []
   val base = c_app "base" []
   fun arr t1 t2 = c_app "arr" [t1, t2]
   fun eapp t1 t2 = c_app "app" [t1, t2]
+  fun elam A t1 = c_app "lam" [A, t1]
   fun eof e A = c_app "of" [e, A]
+  fun step e1 e2 = c_app "step" [e1, e2]
 
   val lambda_test = FromNamed.convertSignature
       [(T, "tp", EType),
@@ -162,8 +167,24 @@ struct
        (T, "of", term --> tp --> EType),
        (O, "of/app",
         EPi ("A", tp, EPi ("B", tp, EPi ("e", term, EPi ("e'", term,
-             eof e (arr A B) --> eof e' A --> eof (eapp e e') B)))))
+             eof e (arr A B) --> eof e' A --> eof (eapp e e') B))))),
+       (O, "of/lam",
+        EPi ("A", tp, EPi ("B", tp, EPi ("e", term --> term,
+             (EPi ("e'", term, eof e' A --> eof (v_app "e" [e']) B)) -->
+             (eof (elam A (eta1 "e")) (arr A B)))))),
 
+       (T, "step", term --> term --> EType),
+       (O, "step/app1",
+        EPi ("e1", term, EPi ("e2", term, EPi ("e1'", term,
+             step (eapp e1 e2) (eapp e1' e2)
+                  <-- step e1 e1'
+       )))),
+
+       (O, "step/beta",
+        EPi ("A", tp, EPi ("e1", term --> term, EPi ("e2", term,
+             step (eapp (elam A (eta1 "e1")) e2)
+                  (v_app "e1" [e2])
+       ))))
       ]
 
   (*******************************************************************************************)
