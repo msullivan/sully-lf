@@ -1,5 +1,6 @@
 signature LF_SUBST =
 sig
+  exception SubstFailure
   val hereditaryReduce : LF.exp -> LF.spine -> LF.exp
   val substExp : int -> LF.exp list -> int -> LF.exp -> LF.exp
   val liftExp : int -> LF.exp -> LF.exp
@@ -17,8 +18,20 @@ end
 
 structure LFSubst :> LF_SUBST =
 struct
+  exception SubstFailure
 
   open LFSyntax
+
+  val debug_depth = ref 0
+  fun spaces n = implode (List.tabulate (n, fn _ => #" "))
+  fun debug_in f = (print (spaces (2*(!debug_depth)) ^ f () ^ "\n");
+                    debug_depth := !debug_depth + 1)
+  fun debug_out () = debug_depth := !debug_depth - 1
+  fun bail e = (debug_depth := 0; raise e)
+
+  (* comment this out to turn on debug spew *)
+  fun debug_in f = ()
+  fun debug_out () = ()
 
   (* substXMain skip substs substs_len lift exp
 
@@ -28,7 +41,12 @@ struct
      then  return exp[0 .. m-1 . s0[^m] .. sn-1[^m] . ^l+m]
    *)
   fun substExpMain skip substs substs_len lift exp =
-      (case exp of
+    (debug_in (fn _=>"subst: " ^ PrettyLF.prettyExpParen exp ^
+                     "[" ^ (if skip = 0 then "" else ("0 .. " ^ (Int.toString (skip-1)) ^ ".")) ^
+                     (String.concatWith " . " (map PrettyLF.prettyExp substs)) ^
+                     " . ^" ^ Int.toString (lift+skip) ^ "]");
+
+      case exp of
            EKind => EKind
          | EType => EType
          | ELam (b, e) =>
@@ -50,11 +68,11 @@ struct
                        let val sub = List.nth (substs, i-skip)
                            val sub' = substExpMain 0 [] 0 skip sub
                        (* I'm *pretty* sure all of the index stuff is done.. *)
-                       in hereditaryReduce sub' spine end
+                       in hereditaryReduce sub' spine' end
                    else
                        EApp (HVar (i-substs_len+lift, s), spine'))
            end
-      )
+      ) before debug_out ()
   and substSpineMain skip substs substs_len lift spine =
       (case spine of
            SNil => SNil
@@ -67,16 +85,20 @@ struct
       let fun getBody (ELam (b, e)) n = getBody e (n+1)
             | getBody e n = (e, n)
 
-           fun getSubsts SNil subs = subs
-             | getSubsts (SApp (e, s)) subs = getSubsts s (e :: subs)
+          val () = debug_in (fn _=>"reduce: [" ^ PrettyLF.prettyExp head ^ " | " ^
+                                   PrettyLF.prettySpine spine ^ "]")
 
-           val (body, count) = getBody head 0
-           val subs = getSubsts spine []
+          val (body, count) = getBody head 0
+          val subs = rev (spineToList spine)
 
-           val () = if count = length subs then ()
-                    else raise Fail "bogus application"
+          (* Fail the substitution if the number of lambdas and number of
+           * arguments don't match up. This allows substitution to be
+           * always terminating, even for ill-typed terms. *)
+          val () = if count = length subs then ()
+                   else bail SubstFailure
 
       in substExpMain 0 subs (length subs) 0 body end
+      before debug_out ()
 
   fun substExp skip substs lift exp =
       substExpMain skip substs (length substs) lift exp

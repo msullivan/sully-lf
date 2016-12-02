@@ -197,6 +197,11 @@ struct
          c_app "bs" [c_app "fix" [ELam ("n", succ n)]]),
         (O, "wrong", c_app "bs" [c_app "fix" [c_0 "s"]])]
 
+  (*******)
+  val self_app_fn = FromNamed.convertExp [] (ELam ("x", v_app "x" [x]))
+  fun omega_reduce_test () =
+    LFSubst.hereditaryReduce
+        self_app_fn (listToSpine [self_app_fn])
 
 
   (*****************************************************************)

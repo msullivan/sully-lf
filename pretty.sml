@@ -79,7 +79,10 @@ struct
 
   val toLayoutTop = toLayoutTop1
 
-  fun prettyExp e = L.tostringex WIDTH (toLayoutTop e)
+  val prettyExp = fmt o toLayoutTop
+  val prettyExpParen = fmt o toLayoutExpParen
+  val prettyHead = fmt o toLayoutHead
+  val prettySpine = fmt o toLayoutSpine
 
   fun prettyMsg msg e = fmt (&[$msg, toLayoutExp e])
   fun prettyMsg2 msg1 e1 sep msg2 e2 =
