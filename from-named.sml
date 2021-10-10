@@ -31,9 +31,10 @@ struct
   fun convertHead G (HVar (~1, "_")) = raise Fail "stop that."
     | convertHead G (HVar (~1, s)) = HVar (valOf (findIndex s G), s)
     | convertHead G (HVar (i, _)) = raise Fail "stop that."
-    | convertHead G h = h
+    | convertHead G (HConst c) = HConst c
+    | convertHead G (HExp (e, t)) = HExp (convertExp G e, convertExp G t)
 
-  fun convertExp G e =
+  and convertExp G e =
       (case e of
            EKind => EKind
          | EType => EType

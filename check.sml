@@ -22,9 +22,6 @@ in
 
   exception TypeError of string
 
-
-  fun requireKind exp =
-      if exp = EKind then () else raise TypeError "expected kind"
   fun requireAtomic exp =
       (case exp of
            EType => ()
@@ -53,6 +50,8 @@ in
          | (HConst c, HConst c') =>
            if c = c' then () else
            raise (TypeError ("const mismatch: " ^ Const.toStr c ^ " vs. " ^ Const.toStr c'))
+         | (HExp _, _) => raise TypeError "not beta-short"
+         | (_, HExp _) => raise TypeError "not beta-short"
          | _ => raise TypeError "const vs. var mismatch")
   and spineEquality s s' =
       (case (s, s') of
@@ -73,7 +72,7 @@ in
       ((*print (PrettyLF.prettyMsg2 "checking: " exp "," "at: " typ ^ "\n");*)
        case exp of
            EKind => raise TypeError "kind is no classifier"
-         | EType => requireKind typ
+         | EType => expEquality' exp typ EKind
          | EPi (b, e1, e2) =>
            (checkExp sg ctx e1 EType;
             checkExp sg (Ctx.extend ctx e1) e2 typ)
@@ -92,6 +91,7 @@ in
            in expEquality' exp typ t' end)
   and checkHead _ ctx (HVar (n, _)) = Ctx.sub ctx n
     | checkHead sg _ (HConst c) = Sig.lookup sg c
+    | checkHead _ _ _ = raise TypeError "not beta-short"
   and checkSpine sg ctx typ SNil = typ
     | checkSpine sg ctx typ (SApp (e, s)) =
       let (*val () = print (PrettyLF.prettyMsg "checking at: " typ ^ "\n")*)
