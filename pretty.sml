@@ -25,9 +25,7 @@ struct
       if !look_good_but_be_wrong then $s
       else $(s ^ "/" ^ Int.toString i)
     | toLayoutHead (HConst s) = $(prettyConst s)
-    | toLayoutHead (HExp (e, t)) =
-      &[$"(", toLayoutExpParen e, $" : ", toLayoutExpParen t, $")"]
-  and toLayoutExp e =
+  fun toLayoutExp e =
       (case e of
            EKind => $"kind"
          | EType => $"type"

@@ -70,15 +70,7 @@ struct
                        (* I'm *pretty* sure all of the index stuff is done.. *)
                        in hereditaryReduce sub' spine' end
                    else
-                       EApp (HVar (i-substs_len+lift, s), spine')
-                 (* Our substitution will hereditarily substitute newly introduced
-                  * redexes but HExps we just process recursively, and let other
-                  * code get rid of them. This is so we can lift during normalization. *)
-                 | HExp (e, t) =>
-                   let val e' = substExpMain skip substs substs_len lift e
-                       val t' = substExpMain skip substs substs_len lift t
-                   in EApp (HExp (e', t'), spine') end
-              )
+                       EApp (HVar (i-substs_len+lift, s), spine'))
            end
       ) before debug_out ()
   and substSpineMain skip substs substs_len lift spine =
@@ -101,12 +93,7 @@ struct
 
           (* Fail the substitution if the number of lambdas and number of
            * arguments don't match up. This allows substitution to be
-           * always terminating, even for ill-typed terms.
-           *
-           * This only works if the term is eta-long (otherwise it may
-           * fail spuriously), so when converting to canonical forms,
-           * we must eta-expand before we beta-reduce.
-           *)
+           * always terminating, even for ill-typed terms. *)
           val () = if count = length subs then ()
                    else bail SubstFailure
 

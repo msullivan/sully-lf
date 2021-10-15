@@ -22,7 +22,6 @@ struct
   fun c_app c ls = h_app (HConst c) ls
   fun v_app x ls = h_app (v x) ls
   fun c_0 c = c_app c []
-  fun h_0 h = h_app h []
 
   end
 
@@ -144,7 +143,6 @@ struct
       ]
 
   fun eta1 e = ELam ("x", h_app (v e) [x])
-  (*fun eta1 e = var e*)
 
   (* An encoding of typing and stepping for
    * the Simply-Typed Lambda Calculus *)
@@ -205,73 +203,6 @@ struct
     LFSubst.hereditaryReduce
         self_app_fn (listToSpine [self_app_fn])
 
-  val two_args = ELam ("n", ELam ("m", c_app "add" [m, n]))
-  val apply_arg = ELam ("k", v_app "k" [c_0 "z"])
-  val apply_arg_typ = (nat --> nat --> nat) --> (nat --> nat)
-  val tricky_reduce_n = h_app (HExp (apply_arg, apply_arg_typ)) [two_args]
-  val tricky_reduce = FromNamed.convertSignature
-       [(T, "nat", EType),
-        (O, "z", nat),
-        (O, "add", nat --> nat --> nat),
-        (T, "app_arg_test", apply_arg_typ --> EType),
-        (O, "bs1", c_app "app_arg_test" [apply_arg]),
-
-        (T, "mk", (nat --> nat) --> EType),
-        (O, "bs", c_app "mk" [tricky_reduce_n])
-       ]
-
-  (* sltc arithmetic *)
-  val b = c_app "b" []
-  val fnat = (b --> b) --> b --> b
-  val fz = ELam ("s", ELam ("z", var "z"))
-  val fs = HExp (
-      ELam ("n", ELam ("s", ELam ("z",
-               v_app "s" [v_app "n" [var "s", var "z"]]))),
-      fnat --> fnat
-      )
-  val fplus = HExp (
-      ELam ("n", ELam ("m", ELam ("s", ELam ("z",
-               v_app "m" [var "s", v_app "n" [var "s", var "z"]])))),
-      fnat --> fnat --> fnat
-      )
-  val fmult = HExp (
-      ELam ("n", ELam ("m", ELam ("s",
-               v_app "m" [v_app "n" [var "s"]]))),
-      fnat --> fnat --> fnat
-      )
-
-  val n1 = h_app fs [fz]
-  val n2 = h_app fs [n1]
-  val n3 = h_app fs [n2]
-  val n4 = h_app fs [n3]
-
-  fun testeq n1 n2 = c_app "heq" [n1, c_app "mkW" [n2]]
-
-  val stlc_maths = FromNamed.convertSignature
-       [(T, "b", EType),
-        (T, "check", (fnat --> fnat) --> (fnat --> fnat --> fnat) -->
-                     (fnat --> fnat --> fnat) --> EType),
-        (O, "bs", c_app "check" [h_0 fs, h_0 fplus, h_0 fmult]),
-        (T, "calc", fnat --> EType),
-        (O, "_1", c_app "calc" [n2]),
-        (O, "_2", c_app "calc" [h_app fplus [n2, n3]]),
-        (O, "_13", c_app "calc" [h_app fmult [n1, h_app fmult [n4, n4]]]),
-
-        (T, "W", fnat --> EType),
-        (O, "mkW", EPi ("n", fnat, c_app "W" [n])),
-        (T, "heq", EPi ("n", fnat, c_app "W" [n] --> EType)),
-        (O, "eq1", testeq n1 n1),
-        (O, "eq2", testeq (h_app fplus [n2, n2]) n4),
-        (O, "eq3", testeq (h_app fplus [n2, n4]) (h_app fmult [n3, n2]))
-       ]
-
-
-  val stlc_bug = FromNamed.convertSignature
-       [(T, "b", EType),
-        (T, "check", (b --> b) --> EType),
-        (T, "no", EType --> EType)
-        (* (O, "bs", c_app "check" [ELam ("x", ELam ("y", x))]) *)
-       ]
 
   (*****************************************************************)
 
@@ -284,8 +215,7 @@ struct
        println (PrettyLF.prettySignature sg);
        ignore (TypeCheckLF.checkSignature sg);
        println "")
-
-  fun checkNormalize sg = check (CanonicalizeLF.canonicalizeSignature sg)
+(*      handle (e as TypeCheckLF.TypeError s) => (println s; raise e)*)
 
 
 end

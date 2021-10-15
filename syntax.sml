@@ -18,9 +18,8 @@ struct
 
   datatype head = HVar of var
                 | HConst of const
-                | HExp of exp * exp (* exp : typ *)
 
-       and exp = EKind
+  datatype exp = EKind
                | EType
                | EPi of binding * exp * exp
                | ELam of binding * exp

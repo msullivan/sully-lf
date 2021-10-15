@@ -28,16 +28,7 @@ Some notes on the implementation:
    equality is just structural equality!
  * To make this extra true, we represent variables using de Bruijn
    indexes.
- * Code is also included that can convert Vanilla LF to Canonical LF.
-   Vanilla LF is encoded using the same syntax tree as Canonical LF,
-   through the presence of a head constructor that takes an
-   (expression : type) pair. The typechecker rejects terms using this
-   constructor.
-   The canonicalization process first does a type-directed eta-expansion
-   pass (but where the type-directedness totally ignores all dependent
-   features, and simply distinguishes between functions and base types).
-   I think that the eta-expansion pass also serves as type-checking
-   for the STLC-only version.
-
-   Then a beta-normalization pass is done that uses hereditary substitution
-   to substitute away any beta redexes.
+ * I don't include code to produce Canonical LF from Vanilla LF, but
+   maybe should. Beta-redexes can be reduced away by hereditary substitution
+   (which will fail in cases that would fail to terminate),
+   but a type-directed eta-expansion phase is also needed.
