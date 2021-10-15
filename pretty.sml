@@ -17,15 +17,23 @@ struct
   (* Config options *)
   val look_good_but_be_wrong = ref true
   val twelf_style_pi = ref true
-
+  val show_exp_atoms = ref false
 
   fun prettyConst s = s
 
-  fun toLayoutHead (HVar (i, s)) =
+  fun toLayoutAtom (HVar (i, s)) =
       if !look_good_but_be_wrong then $s
       else $(s ^ "/" ^ Int.toString i)
-    | toLayoutHead (HConst s) = $(prettyConst s)
-  fun toLayoutExp e =
+    | toLayoutAtom (HConst s) = $(prettyConst s)
+    | toLayoutAtom (HExp e) =
+      if !show_exp_atoms then
+          & [$"H[", toLayoutExp e, $"]"]
+      else toLayoutExp e
+    | toLayoutAtom (h as (HApp _)) =
+      let val (h', s) = atomToSpine h in
+          & [toLayoutAtom h', $" ", toLayoutSpine s]
+      end
+  and toLayoutExp e =
       (case e of
            EKind => $"kind"
          | EType => $"type"
@@ -36,21 +44,23 @@ struct
 
          | EPi (b, e1, e2) =>
            % [piPartLayout b e1, toLayoutExp e2]
-         | ELam (b, e) =>
+         | ELam (b, NONE, e) =>
            & [$"\\",
               % [ &[$b, $"."],
                   toLayoutExp e]
              ]
-         | EApp (h, SNil) => toLayoutHead h
-         | EApp (h, s) =>
-           & [toLayoutHead h, $" ",
-              toLayoutSpine s])
+         | ELam (b, SOME t, e) =>
+           & [$"\\",
+              % [ &[$b, $":", toLayoutExp t, $"."],
+                  toLayoutExp e]
+             ]
+         | EAtom a => toLayoutAtom a)
   and toLayoutSpine s =
-      let val layouts = map toLayoutExpParen (spineToList s)
+      let val layouts = map toLayoutExpParen s
       in %% layouts end
 
   and toLayoutExpParen (e as ELam _) = L.paren (toLayoutExp e)
-    | toLayoutExpParen (e as EApp (_, SApp _)) = L.paren (toLayoutExp e)
+    | toLayoutExpParen (e as EAtom (HApp _)) = L.paren (toLayoutExp e)
     | toLayoutExpParen e = toLayoutExp e
   and toLayoutTyParen (e as ELam _) = L.paren (toLayoutExp e)
     | toLayoutTyParen (e as EPi _) = L.paren (toLayoutExp e)
@@ -81,7 +91,7 @@ struct
 
   val prettyExp = fmt o toLayoutTop
   val prettyExpParen = fmt o toLayoutExpParen
-  val prettyHead = fmt o toLayoutHead
+  val prettyAtom = fmt o toLayoutAtom
   val prettySpine = fmt o toLayoutSpine
 
   fun prettyMsg msg e = fmt (&[$msg, toLayoutExp e])
@@ -89,7 +99,7 @@ struct
       fmt (%[ &[$msg1, toLayoutExp e1, $sep],
               &[$msg2, toLayoutExp e2]])
 
-  fun prettyDecl (_, c, e) = fmt (&[$c, $": ", toLayoutTop e, $"."])
+  fun prettyDecl (c, e) = fmt (&[$c, $": ", toLayoutTop e, $"."])
 
   fun prettySignature sg =
       String.concatWith "\n" (map prettyDecl sg)

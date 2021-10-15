@@ -16,27 +16,24 @@ struct
   type const = Const.const
   type binding = string
 
-  datatype head = HVar of var
+  datatype atom = HVar of var
                 | HConst of const
+                | HExp of exp
+                | HApp of atom * exp
 
-  datatype exp = EKind
+       and exp = EKind
                | EType
                | EPi of binding * exp * exp
-               | ELam of binding * exp
-               | EApp of head * spine
-  (* Should spine just be a list? *)
-       and spine = SNil
-                 | SApp of exp * spine
+               | ELam of binding * exp option * exp
+               | EAtom of atom
 
-  datatype entry_type = SgFamilyDecl | SgObjectDecl
-  type sg_entry = entry_type * Const.const * exp
+  type sg_entry = Const.const * exp
   type sg = sg_entry list
 
-  val listToSpine = foldr SApp SNil
-  fun spineToList SNil = nil
-    | spineToList (SApp (e, s)) = e :: spineToList s
-  (* welp. *)
-  fun mapSpine f = listToSpine o map f o spineToList
+  fun atomToSpine h =
+      let fun loop (HApp (h, e)) s = loop h (e::s)
+            | loop h s = (h, s)
+      in loop h [] end
 
 end
 structure LF = LFSyntax

@@ -1,9 +1,11 @@
 signature LF_SUBST =
 sig
   exception SubstFailure
-  val hereditaryReduce : LF.exp -> LF.spine -> LF.exp
-  val substExp : int -> LF.exp list -> int -> LF.exp -> LF.exp
+(*  val hereditaryReduce : LF.exp -> LF.exp -> LF.exp*)
+  val substExpFull : int -> LF.exp list -> int -> LF.exp -> LF.exp
+  val substExp : LF.exp -> LF.exp -> LF.exp
   val liftExp : int -> LF.exp -> LF.exp
+  val liftAtom : int -> LF.atom -> LF.atom
 end
 
 
@@ -49,60 +51,55 @@ struct
       case exp of
            EKind => EKind
          | EType => EType
-         | ELam (b, e) =>
-           let val e' = substExpMain (skip+1) substs substs_len lift e
-           in ELam (b, e') end
+         | ELam (b, ot, e) =>
+           let val ot' = Option.map (substExpMain skip substs substs_len lift) ot
+               val e' = substExpMain (skip+1) substs substs_len lift e
+           in ELam (b, ot', e') end
          | EPi (b, e1, e2) =>
            let val e1' = substExpMain skip substs substs_len lift e1
                val e2' = substExpMain (skip+1) substs substs_len lift e2
            in EPi (b, e1', e2') end
-         | EApp (head, spine) =>
-           let val spine' = substSpineMain skip substs substs_len lift spine
-           in (case head of
-                   HConst c =>
-                   EApp (HConst c, spine')
-                 | HVar (i, s) =>
-                   if i < skip then
-                       EApp (HVar (i, s), spine')
-                   else if i < skip+substs_len then
-                       let val sub = List.nth (substs, i-skip)
-                           val sub' = substExpMain 0 [] 0 skip sub
-                       (* I'm *pretty* sure all of the index stuff is done.. *)
-                       in hereditaryReduce sub' spine' end
-                   else
-                       EApp (HVar (i-substs_len+lift, s), spine'))
-           end
+         | EAtom at =>
+           (case substAtomMain skip substs substs_len lift at of
+                (* This check ensures that termination always terminates,
+                 * but also means it only works on eta-long terms. *)
+                EAtom at' => EAtom at'
+              | _ => raise SubstFailure)
       ) before debug_out ()
-  and substSpineMain skip substs substs_len lift spine =
-      (case spine of
-           SNil => SNil
-         | SApp (exp, spine) =>
-           let val exp' = substExpMain skip substs substs_len lift exp
-               val spine' = substSpineMain skip substs substs_len lift spine
-           in SApp (exp', spine') end)
 
-  and hereditaryReduce head spine =
-      let fun getBody (ELam (b, e)) n = getBody e (n+1)
-            | getBody e n = (e, n)
+  and substAtomMain skip substs substs_len lift atom =
+      (case atom of
+           HExp e => raise SubstFailure
+         | HConst c => EAtom (HConst c)
+         | HVar (i, s) =>
+           if i < skip then
+               EAtom (HVar (i, s))
+           else if i < skip+substs_len then
+               let val sub = List.nth (substs, i-skip)
+                   val sub' = substExpMain 0 [] 0 skip sub
+               (* I'm *pretty* sure all of the index stuff is done.. *)
+               in sub' end
+           else
+               EAtom (HVar (i-substs_len+lift, s))
+         | HApp (at, e) =>
+           let val lhs = substAtomMain skip substs substs_len lift at
+               val e' = substExpMain skip substs substs_len lift e
+           in (case lhs of
+                   EAtom at' => EAtom (HApp (at', e'))
+                 (* ... is this right? *)
+                 | ELam (_, _, e2) => substExpMain 0 [e'] 1 0 e2
+                 | _ => bail SubstFailure
+              )
+           end
+      )
 
-          val () = debug_in (fn _=>"reduce: [" ^ PrettyLF.prettyExp head ^ " | " ^
-                                   PrettyLF.prettySpine spine ^ "]")
-
-          val (body, count) = getBody head 0
-          val subs = rev (spineToList spine)
-
-          (* Fail the substitution if the number of lambdas and number of
-           * arguments don't match up. This allows substitution to be
-           * always terminating, even for ill-typed terms. *)
-          val () = if count = length subs then ()
-                   else bail SubstFailure
-
-      in substExpMain 0 subs (length subs) 0 body end
-      before debug_out ()
-
-  fun substExp skip substs lift exp =
+  fun substExpFull skip substs lift exp =
       substExpMain skip substs (length substs) lift exp
-  fun liftExp lift exp = substExp 0 [] lift exp
+  fun substExp subst exp = substExpFull 0 [subst] 0 exp
+  fun liftExp lift exp = substExpFull 0 [] lift exp
+  fun liftAtom lift atom =
+      let val (EAtom atom') = substAtomMain 0 [] 0 lift atom
+      in atom' end
 end
 
 structure LFContext :> CONTEXT =

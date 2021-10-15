@@ -2,9 +2,11 @@ signature TYPE_CHECK_LF =
 sig
   exception TypeError of string
 
+  val expEquality' : LF.exp -> LF.exp -> LF.exp -> unit
   val expEquality : LF.exp -> LF.exp -> unit
   val checkExp : Signature.sg -> LFContext.ctx -> LF.exp -> LF.exp -> unit
 
+  val inferClassifier : LF.exp -> LF.exp
   val checkSignatureEntry : Signature.sg -> LF.sg_entry -> Signature.sg
 
   val checkSignature : LF.sg -> Signature.sg
@@ -22,13 +24,10 @@ in
 
   exception TypeError of string
 
-
-  fun requireKind exp =
-      if exp = EKind then () else raise TypeError "expected kind"
   fun requireAtomic exp =
       (case exp of
            EType => ()
-         | EApp _ => ()
+         | EAtom _ => ()
          | _ => raise TypeError (PrettyLF.prettyMsg
                                      "required atomic type, got: "
                                      exp))
@@ -39,12 +38,12 @@ in
          | (EType, EType) => ()
          | (EPi (_, e1, e2), EPi (_, e1', e2')) =>
            (expEquality e1 e1'; expEquality e2 e2')
-         | (ELam (_, e), ELam (_, e')) =>
+         | (ELam (_, NONE, e), ELam (_, NONE, e')) =>
            expEquality e e'
-         | (EApp (h, s), EApp (h', s')) =>
-           (headEquality h h'; spineEquality s s')
+         | (EAtom h, EAtom h') =>
+           atomEquality h h'
          | _ => raise TypeError "exps not equal")
-  and headEquality h h' =
+  and atomEquality h h' =
       (case (h, h') of
            (HVar (i, _), HVar (i', _)) =>
            if i = i' then () else
@@ -53,13 +52,13 @@ in
          | (HConst c, HConst c') =>
            if c = c' then () else
            raise (TypeError ("const mismatch: " ^ Const.toStr c ^ " vs. " ^ Const.toStr c'))
+         | (HApp (h1, e1), HApp (h2, e2)) =>
+           (atomEquality h1 h2; expEquality e1 e2)
+         | (HExp _, _) => raise TypeError "not beta-short"
+         | (_, HExp _) => raise TypeError "not beta-short"
+         | (HApp _, _) => raise TypeError "head vs. app mismatch"
+         | (_, HApp _) => raise TypeError "head vs. app mismatch"
          | _ => raise TypeError "const vs. var mismatch")
-  and spineEquality s s' =
-      (case (s, s') of
-           (SNil, SNil) => ()
-         | (SApp (e, s), SApp (e', s')) =>
-           (expEquality e e'; spineEquality s s')
-         | _ => raise TypeError "spine length mismatch??")
 
 
   fun expEquality' e t t' =
@@ -73,35 +72,38 @@ in
       ((*print (PrettyLF.prettyMsg2 "checking: " exp "," "at: " typ ^ "\n");*)
        case exp of
            EKind => raise TypeError "kind is no classifier"
-         | EType => requireKind typ
+         | EType => expEquality' exp typ EKind
          | EPi (b, e1, e2) =>
            (checkExp sg ctx e1 EType;
             checkExp sg (Ctx.extend ctx e1) e2 typ)
 
-         | ELam (b, e) =>
+         | ELam (b, ot, e) =>
            let val (t1, t2) =
                (case typ of EPi (_, t1, t2) => (t1, t2)
                           | _ => raise TypeError "lambda must have pi type")
+               (* Type annotation is optional but we might as well check it *)
+               val () = Option.app (expEquality' exp t1) ot
            in checkExp sg (Ctx.extend ctx t1) e t2 end
-
-         | EApp (h, spine) =>
-           let val t = checkHead sg ctx h
-               (*val () = print (PrettyLF.prettyMsg "head has type: " t ^ "\n")*)
-               val t' = checkSpine sg ctx t spine
+         | EAtom h =>
+           let val t' = checkAtom sg ctx h
                val () = requireAtomic t'
            in expEquality' exp typ t' end)
-  and checkHead _ ctx (HVar (n, _)) = Ctx.sub ctx n
-    | checkHead sg _ (HConst c) = Sig.lookup sg c
-  and checkSpine sg ctx typ SNil = typ
-    | checkSpine sg ctx typ (SApp (e, s)) =
-      let (*val () = print (PrettyLF.prettyMsg "checking at: " typ ^ "\n")*)
-          val (t1, t2) =
-               (case typ of EPi (_, t1, t2) => (t1, t2)
-                          | _ => raise TypeError "lhs of app must be pi")
-          val () = checkExp sg ctx e t1
-          (* We could probably arrange to do one big substitution. *)
-          val t2' = LFSubst.substExp 0 [e] 0 t2
-      in checkSpine sg ctx t2' s end
+
+  and checkAtom sg ctx h =
+      (case h of
+           HVar (n, _) => Ctx.sub ctx n
+         | HConst c => Sig.lookup sg c
+         | HApp (h', e) =>
+           let val t = checkAtom sg ctx h'
+               (*val () = print (PrettyLF.prettyMsg "head has type: " t ^ "\n")*)
+               val (t1, t2) =
+                   (case t of EPi (_, t1, t2) => (t1, t2)
+                              | _ => raise TypeError "lhs of app must be pi")
+               val () = checkExp sg ctx e t1
+           in LFSubst.substExp e t2 end
+
+         | _ => raise TypeError "not beta-short"
+      )
 
   fun checkExp' sg ctx exp typ =
       ((checkExp sg ctx exp typ)
@@ -112,11 +114,16 @@ in
        handle TypeError s => (print ("\nType error: " ^ s ^ "\n"); raise TypeError s))
   val expEquality = expEquality''
 
+  fun inferClassifier e =
+      (case e of
+           EType => EKind
+         | EAtom _ => EType
+         | EPi (_, _, e') => inferClassifier e'
+         | EKind => raise TypeError "kind not valid as a signature declaration"
+         | ELam _ => raise TypeError "lambda not valid as a signature declaration")
 
-  fun checkSignatureEntry sg ((entry_type, c, exp): LF.sg_entry) =
-      let val classifier =
-              (case entry_type of SgFamilyDecl => EKind
-                                | SgObjectDecl => EType)
+  fun checkSignatureEntry sg ((c, exp): LF.sg_entry) =
+      let val classifier = inferClassifier exp
           val () = checkExp sg Ctx.empty exp classifier
       in Sig.insert sg c exp end
 
